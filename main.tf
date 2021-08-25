@@ -29,7 +29,7 @@ module "vpc" {
   single_nat_gateway = false
   one_nat_gateway_per_az = false
 
-  enable_vpn_gateway = false
+  #enable_vpn_gateway = false
   
   # public access to RDS instance / not recommended for Prod
   create_database_subnet_group           = true
@@ -61,27 +61,41 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"] # Canonical
 }
 
-# asg - wip
+# chainlink node asg - wip
 resource "aws_autoscaling_group" "cl-node-asg" {
   name                 = "cl-terra-asg"
-  max-size             = 2
-  min_size             = 2
-  desired_capacity     = 2
-  launch_configuration = 
+  max_size             = var.node_min_size
+  min_size             = var.node_max_size
+  desired_capacity     = var.node_desired_capacity
+  launch_configuration = aws_launch_configuration.cl-node-lc.id
   default_cooldown     = 300
-  vpc_zone_identifier  = 
+  vpc_zone_identifier  = [module.vpc.public_subnets[0], module.vpc.public_subnets[1]]
+}
+
+resource "aws_launch_configuration" "cl-node-lc" {
+  name = "cl-node-launch-config"
+  image_id = data.aws_ami.ubuntu.id
+  instance_type = var.instance_type
+  key_name = "chainlink-node"
+
+  root_block_device {
+    volume_type = "gp2"
+    volume_size = var.node_volume_size
+  }
+
 }
 
 # aws ec2 instance
 resource "aws_instance" "terraform-test" {
-  ami           = "ami-09e67e426f25ce0d7"
-  instance_type = "t3.micro"
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = var.instance_type
   
   tags = {
     Name = "HelloTerraform"
   }
 }
 
+## Sample resource template
 # resource "<provider>_<resource_type>" "name" {
 #     config options ...
 #     key = "value"
