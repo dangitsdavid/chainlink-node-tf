@@ -63,19 +63,14 @@ data "aws_ami" "ubuntu" {
 
 # amazon linux 2 image
 data "aws_ami" "amazon-linux-2" {
- most_recent = true
+  most_recent = true
 
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm*"]
+  }
 
- filter {
-   name   = "owner-alias"
-   values = ["amazon"]
- }
-
-
- filter {
-   name   = "name"
-   values = ["amzn2-ami-hvm*"]
- }
+  owners = ["amazon"]
 }
 
 # chainlink node asg - wip
@@ -100,6 +95,7 @@ resource "aws_launch_configuration" "cl-node-lc" {
   image_id = data.aws_ami.ubuntu.id
   instance_type = var.instance_type
   key_name = "quickstart-staging"
+  enable_monitoring = false
 
   root_block_device {
     volume_type = "gp2"
