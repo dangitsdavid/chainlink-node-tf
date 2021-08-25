@@ -61,6 +61,23 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"] # Canonical
 }
 
+# amazon linux 2 image
+data "aws_ami" "amazon-linux-2" {
+ most_recent = true
+
+
+ filter {
+   name   = "owner-alias"
+   values = ["amazon"]
+ }
+
+
+ filter {
+   name   = "name"
+   values = ["amzn2-ami-hvm*"]
+ }
+}
+
 # chainlink node asg - wip
 resource "aws_autoscaling_group" "cl-node-asg" {
   name                 = "cl-terra-asg"
@@ -69,14 +86,20 @@ resource "aws_autoscaling_group" "cl-node-asg" {
   desired_capacity     = var.node_desired_capacity
   launch_configuration = aws_launch_configuration.cl-node-lc.id
   default_cooldown     = 300
-  vpc_zone_identifier  = [module.vpc.public_subnets[0], module.vpc.public_subnets[1]]
+  vpc_zone_identifier  = [module.vpc.private_subnets[0], module.vpc.private_subnets[1]]
+
+  tag {
+    key                 = "Name"
+    value               = "ChainlinkTfNode"
+    propagate_at_launch = true
+  }
 }
 
 resource "aws_launch_configuration" "cl-node-lc" {
   name = "cl-node-launch-config"
   image_id = data.aws_ami.ubuntu.id
   instance_type = var.instance_type
-  key_name = "chainlink-node"
+  key_name = "quickstart-staging"
 
   root_block_device {
     volume_type = "gp2"
