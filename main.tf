@@ -76,8 +76,8 @@ data "aws_ami" "amazon-linux-2" {
 # chainlink node asg - wip
 resource "aws_autoscaling_group" "node" {
   name                 = "node-asg"
-  max_size             = var.node_min_size
-  min_size             = var.node_max_size
+  max_size             = var.node_max_size
+  min_size             = var.node_min_size
   desired_capacity     = var.node_desired_capacity
   launch_configuration = aws_launch_configuration.node.id
   default_cooldown     = 300
@@ -96,6 +96,7 @@ resource "aws_launch_configuration" "node" {
   instance_type = var.node_instance_type
   key_name = "quickstart-staging"
   enable_monitoring = false
+  security_groups = [aws_security_group.node.id]
 
   root_block_device {
     volume_type = "gp2"
@@ -110,11 +111,26 @@ resource "aws_security_group" "node" {
 
   ingress = [
     {
-      description = "SSH from Bastion"
-      from_port   = "22"
-      to_port     = "22"
-      protocol    = "tcp"
-      cidr_blocks = ["10.0.0.0/16"]
+      description      = "SSH from Bastion"
+      from_port        = "22"
+      to_port          = "22"
+      protocol         = "tcp"
+      cidr_blocks      = ["10.0.0.0/16"]
+      ipv6_cidr_blocks = null
+      prefix_list_ids  = null
+      security_groups  = null
+      self             = null
+    },
+    {
+      description      = "Chainlink node Web GUI"
+      from_port        = "6688"
+      to_port          = "6688"
+      protocol         = "tcp"
+      cidr_blocks      = ["10.0.0.0/16"]
+      ipv6_cidr_blocks = null
+      prefix_list_ids  = null
+      security_groups  = null
+      self             = null
     }
   ]
 
@@ -125,10 +141,10 @@ resource "aws_security_group" "node" {
       protocol         = "-1"
       cidr_blocks      = ["0.0.0.0/0"]
       ipv6_cidr_blocks = ["::/0"]
-      description      = ""
-      prefix_list_ids  = ""
-      security_groups  = [""]
-      self             = ""
+      description      = null
+      prefix_list_ids  = null
+      security_groups  = null
+      self             = null
     }
   ]
 }
@@ -136,8 +152,8 @@ resource "aws_security_group" "node" {
 # bastion host asg - wip
 resource "aws_autoscaling_group" "bastion" {
   name                 = "bastion-asg"
-  max_size             = var.bastion_min_size
-  min_size             = var.bastion_max_size
+  max_size             = var.bastion_max_size
+  min_size             = var.bastion_min_size
   desired_capacity     = var.bastion_desired_capacity
   launch_configuration = aws_launch_configuration.bastion.id
   default_cooldown     = 300
@@ -157,11 +173,46 @@ resource "aws_launch_configuration" "bastion" {
   key_name = "quickstart-staging"
   enable_monitoring = false
   associate_public_ip_address = true
+  security_groups = [aws_security_group.bastion.id]
 
   root_block_device {
     volume_type = "gp2"
     volume_size = var.bastion_volume_size
   }
+}
+
+resource "aws_security_group" "bastion" {
+  name        = "bastion_sg"
+  description = "Security group for bastion host"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress = [
+    {
+      description      = "SSH from Bastion"
+      from_port        = "22"
+      to_port          = "22"
+      protocol         = "tcp"
+      cidr_blocks      = ["0.0.0.0/0"]
+      ipv6_cidr_blocks = null
+      prefix_list_ids  = null
+      security_groups  = null
+      self             = null
+    }
+  ]
+
+  egress = [
+    {
+      from_port        = 0
+      to_port          = 0
+      protocol         = "-1"
+      cidr_blocks      = ["0.0.0.0/0"]
+      ipv6_cidr_blocks = ["::/0"]
+      description      = null
+      prefix_list_ids  = null
+      security_groups  = null
+      self             = null
+    }
+  ]
 }
 
 ## Sample resource template
