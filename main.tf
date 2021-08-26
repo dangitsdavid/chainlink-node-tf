@@ -188,7 +188,7 @@ resource "aws_security_group" "bastion" {
 
   ingress = [
     {
-      description      = "SSH from Bastion"
+      description      = "SSH access"
       from_port        = "22"
       to_port          = "22"
       protocol         = "tcp"
