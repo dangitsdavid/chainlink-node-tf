@@ -3,7 +3,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 3.0"
+      version = "3.55.0"
     }
   }
 }
@@ -74,12 +74,12 @@ data "aws_ami" "amazon-linux-2" {
 }
 
 # chainlink node asg - wip
-resource "aws_autoscaling_group" "cl-node-asg" {
-  name                 = "cl-terra-asg"
+resource "aws_autoscaling_group" "node" {
+  name                 = "node-asg"
   max_size             = var.node_min_size
   min_size             = var.node_max_size
   desired_capacity     = var.node_desired_capacity
-  launch_configuration = aws_launch_configuration.cl-node-lc.id
+  launch_configuration = aws_launch_configuration.node.id
   default_cooldown     = 300
   vpc_zone_identifier  = [module.vpc.private_subnets[0], module.vpc.private_subnets[1]]
 
@@ -90,10 +90,10 @@ resource "aws_autoscaling_group" "cl-node-asg" {
   }
 }
 
-resource "aws_launch_configuration" "cl-node-lc" {
-  name = "cl-node-launch-config"
-  image_id = data.aws_ami.ubuntu.id
-  instance_type = var.instance_type
+resource "aws_launch_configuration" "node" {
+  name = "node-launch-config"
+  image_id = data.aws_ami.amazon-linux-2.id
+  instance_type = var.node_instance_type
   key_name = "quickstart-staging"
   enable_monitoring = false
 
@@ -101,16 +101,66 @@ resource "aws_launch_configuration" "cl-node-lc" {
     volume_type = "gp2"
     volume_size = var.node_volume_size
   }
-
 }
 
-# aws ec2 instance
-resource "aws_instance" "terraform-test" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = var.instance_type
-  
-  tags = {
-    Name = "HelloTerraform"
+resource "aws_security_group" "node" {
+  name        = "node_sg"
+  description = "Security group for Chainlink node"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress = [
+    {
+      description = "SSH from Bastion"
+      from_port   = "22"
+      to_port     = "22"
+      protocol    = "tcp"
+      cidr_blocks = ["10.0.0.0/16"]
+    }
+  ]
+
+  egress = [
+    {
+      from_port        = 0
+      to_port          = 0
+      protocol         = "-1"
+      cidr_blocks      = ["0.0.0.0/0"]
+      ipv6_cidr_blocks = ["::/0"]
+      description      = ""
+      prefix_list_ids  = ""
+      security_groups  = [""]
+      self             = ""
+    }
+  ]
+}
+
+# bastion host asg - wip
+resource "aws_autoscaling_group" "bastion" {
+  name                 = "bastion-asg"
+  max_size             = var.bastion_min_size
+  min_size             = var.bastion_max_size
+  desired_capacity     = var.bastion_desired_capacity
+  launch_configuration = aws_launch_configuration.bastion.id
+  default_cooldown     = 300
+  vpc_zone_identifier  = [module.vpc.public_subnets[0], module.vpc.public_subnets[1]]
+
+  tag {
+    key                 = "Name"
+    value               = "BastionHostTf"
+    propagate_at_launch = true
+  }
+}
+
+resource "aws_launch_configuration" "bastion" {
+  name = "bastion-launch-config"
+  image_id = data.aws_ami.amazon-linux-2.id
+  instance_type = var.bastion_instance_type
+  key_name = "quickstart-staging"
+  enable_monitoring = false
+  associate_public_ip_address = true
+
+  root_block_device {
+    volume_type = "gp2"
+    volume_size = var.bastion_volume_size
   }
 }
 
