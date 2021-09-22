@@ -1,3 +1,8 @@
+variable "key_pair" {
+  description = "The key pair to connect to instance."
+  default     = "quickstart-staging"
+}
+
 variable "node_min_size" {
   description = "The Chainlink node ASG minimum instance size."
   default     = 2
@@ -46,4 +51,9 @@ variable "bastion_volume_size" {
 variable "bastion_instance_type" {
   description = "The instance type to use for the Chainlink container. It is recommended to use t3.medium and above."
   default     = "t3.micro"
+}
+
+variable "db_username" {
+  description = "The username for the PostgreSQL database"
+  default     = "chainlinkuser"
 }

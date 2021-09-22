@@ -5,6 +5,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "3.55.0"
     }
+    random = {
+      source = "hashicorp/random"
+      version = "3.1.0"
+    }
   }
 }
 
@@ -44,6 +48,12 @@ module "vpc" {
   }
 }
 
+locals {
+  db_creds = jsondecode(
+    data.aws_secretsmanager_secret_version.dbsecret.secret_string
+  )
+}
+
 # ubuntu image
 data "aws_ami" "ubuntu" {
   most_recent = true
@@ -71,6 +81,35 @@ data "aws_ami" "amazon-linux-2" {
   }
 
   owners = ["amazon"]
+}
+
+# db pass 
+data "aws_secretsmanager_secret_version" "dbsecret" {
+  secret_id = aws_secretsmanager_secret.secretcreds.id
+}
+
+# db pass secret
+resource "random_password" "dbpassword" {
+  length           = 16
+  min_lower        = 3
+  min_numeric      = 3
+  min_upper        = 3
+  min_special      = 3
+  special          = true
+  override_special = "_%!"
+}
+
+resource "aws_secretsmanager_secret" "secretcreds" {
+  name = "db_creds"
+}
+
+resource "aws_secretsmanager_secret_version" "dbsecret" {
+  secret_id     = "db_creds"
+  secret_string = <<EOF
+    {
+      "password": "${random_password.dbpassword.result}"
+    }
+  EOF
 }
 
 # chainlink node asg - wip
@@ -170,7 +209,7 @@ resource "aws_launch_configuration" "bastion" {
   name = "bastion-launch-config"
   image_id = data.aws_ami.amazon-linux-2.id
   instance_type = var.bastion_instance_type
-  key_name = "quickstart-staging"
+  key_name = var.key_pair
   enable_monitoring = false
   associate_public_ip_address = true
   security_groups = [aws_security_group.bastion.id]
@@ -215,9 +254,15 @@ resource "aws_security_group" "bastion" {
   ]
 }
 
-## Sample resource template
-# resource "<provider>_<resource_type>" "name" {
-#     config options ...
-#     key = "value"
-#     key2 = "another value"
-# }
+# db
+resource "aws_db_instance" "this" {
+  allocated_storage      = 50
+  engine                 = "postgresql"
+  instance_class         = "db.t3.small"
+  name                   = "chainlinkdb"
+  username               = var.db_username
+  password               = local.db_creds.password
+  skip_final_snapshot    = true
+  db_subnet_group_name   = module.vpc.database_subnet_group_name
+  vpc_security_group_ids = [module.vpc.vpc_id]
+}
