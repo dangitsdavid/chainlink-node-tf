@@ -100,7 +100,7 @@ resource "random_password" "dbpassword" {
 }
 
 resource "aws_secretsmanager_secret" "secretcreds" {
-  name = "db_creds"
+  name = "secret-creds"
 }
 
 resource "aws_secretsmanager_secret_version" "dbsecret" {
@@ -130,17 +130,75 @@ resource "aws_autoscaling_group" "node" {
 }
 
 resource "aws_launch_configuration" "node" {
-  name = "node-launch-config"
-  image_id = data.aws_ami.amazon-linux-2.id
-  instance_type = var.node_instance_type
-  key_name = "quickstart-staging"
-  enable_monitoring = false
-  security_groups = [aws_security_group.node.id]
+  name                 = "node-launch-config"
+  image_id             = data.aws_ami.amazon-linux-2.id
+  instance_type        = var.node_instance_type
+  key_name             = "quickstart-staging"
+  enable_monitoring    = false
+  security_groups      = [aws_security_group.node.id]
+  iam_instance_profile = "chainlink-node-instance-profile"
 
   root_block_device {
     volume_type = "gp2"
     volume_size = var.node_volume_size
   }
+}
+
+resource "aws_iam_instance_profile" "node" {
+  name                = "chainlink-node-instance-profile"
+  role                = "chainlink-node-iam-role"
+}
+
+resource "aws_iam_role" "node" {
+  name                = "chainlink-node-iam-role"
+  path                = "/"
+  assume_role_policy  = <<EOF
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Action": "sts:AssumeRole",
+                "Principal": {
+                  "Service": "ec2.amazonaws.com"
+                },
+                "Effect": "Allow",
+                "Sid": ""
+            }
+        ]
+    }
+    EOF
+  managed_policy_arns = [aws_iam_policy.node.arn]
+}
+
+resource "aws_iam_policy" "node" {
+  name        = "node-policy"
+  path        = "/"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action   = ["logs:CreateLogStream", "logs:CreateLogGroup", "logs:PutLogEvents", "logs:DescribeLogStreams"]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      {
+        Action   = ["cloudwatch:PutMetricData", "cloudwatch:GetMetricStatistics", "cloudwatch:ListMetrics"]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      {
+        Action   = ["ec2:DescribeInstances"]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      {
+        Action   = ["secretsmanager:GetSecretValue"]
+        Effect   = "Allow"
+        Resource = [aws_secretsmanager_secret_version.dbsecret.arn]
+      }
+    ]
+  })
 }
 
 resource "aws_security_group" "node" {
@@ -258,11 +316,12 @@ resource "aws_security_group" "bastion" {
 resource "aws_db_instance" "this" {
   allocated_storage      = 50
   engine                 = "postgresql"
-  instance_class         = "db.t3.small"
+  instance_class         = var.db_instance_type
   name                   = "chainlinkdb"
   username               = var.db_username
   password               = local.db_creds.password
   skip_final_snapshot    = true
   db_subnet_group_name   = module.vpc.database_subnet_group_name
   vpc_security_group_ids = [module.vpc.vpc_id]
+  port                   = 5432
 }

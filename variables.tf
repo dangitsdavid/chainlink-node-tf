@@ -53,7 +53,12 @@ variable "bastion_instance_type" {
   default     = "t3.micro"
 }
 
+variable "db_instance_type" {
+  description = "The instance type for RDS PostgreSQL database."
+  default     = "db.t3.small"
+}
+
 variable "db_username" {
-  description = "The username for the PostgreSQL database"
+  description = "The username for the PostgreSQL database."
   default     = "chainlinkuser"
 }
