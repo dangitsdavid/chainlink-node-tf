@@ -1,3 +1,1 @@
-# chainlink-node-tf
-
-Spin up Chainlink nodes in Terraform in AWS
+# Deploy Chainlink nodes with Terraform in AWS
